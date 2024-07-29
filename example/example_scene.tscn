@@ -1,0 +1,77 @@
+[gd_scene load_steps=9 format=3 uid="uid://badxsv7eeoqq7"]
+
+[ext_resource type="Script" path="res://addons/trail_2d/trail_2d.gd" id="1_s71qc"]
+[ext_resource type="Texture2D" uid="uid://dud72uhyoum35" path="res://example/vfx_test_texture.png" id="2_psm2v"]
+
+[sub_resource type="Animation" id="Animation_ebvye"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Trail2D:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(572, 151)]
+}
+
+[sub_resource type="Animation" id="Animation_vjg52"]
+resource_name = "new_animation"
+length = 2.0
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Trail2D:position")
+tracks/0/interp = 2
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5, 1, 1.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [Vector2(572, 151), Vector2(139, 380), Vector2(630, 556), Vector2(999, 328)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_2t1i5"]
+_data = {
+"RESET": SubResource("Animation_ebvye"),
+"new_animation": SubResource("Animation_vjg52")
+}
+
+[sub_resource type="Curve" id="Curve_nh4de"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.323444), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="Curve" id="Curve_cuub1"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="Gradient" id="Gradient_0hser"]
+interpolation_mode = 2
+offsets = PackedFloat32Array(0, 0.059322, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[node name="ExampleScene" type="Node2D"]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_2t1i5")
+}
+
+[node name="Trail2D" type="Node2D" parent="."]
+texture_repeat = 2
+position = Vector2(572, 151)
+script = ExtResource("1_s71qc")
+life_time = 2.0
+segment_length = 25.0
+width = 100.0
+width_curve = SubResource("Curve_nh4de")
+noise_amount = 300.0
+noise_amount_curve = SubResource("Curve_cuub1")
+noise_frequency = 0.25
+gradient = SubResource("Gradient_0hser")
+texture = ExtResource("2_psm2v")
+texture_mode = 2

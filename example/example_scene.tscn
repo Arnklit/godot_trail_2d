@@ -1,7 +1,7 @@
 [gd_scene load_steps=9 format=3 uid="uid://badxsv7eeoqq7"]
 
 [ext_resource type="Script" path="res://addons/trail_2d/trail_2d.gd" id="1_s71qc"]
-[ext_resource type="Texture2D" uid="uid://dud72uhyoum35" path="res://example/vfx_test_texture.png" id="2_psm2v"]
+[ext_resource type="Texture2D" uid="uid://dud72uhyoum35" path="res://example/vfx_test_texture.png" id="2_p8vka"]
 
 [sub_resource type="Animation" id="Animation_ebvye"]
 length = 0.001
@@ -42,16 +42,15 @@ _data = {
 }
 
 [sub_resource type="Curve" id="Curve_nh4de"]
-_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.323444), 0.0, 0.0, 0, 0]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.462406), 0.0, 0.0, 0, 0]
 point_count = 2
 
-[sub_resource type="Curve" id="Curve_cuub1"]
+[sub_resource type="Curve" id="Curve_udh83"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
 point_count = 2
 
-[sub_resource type="Gradient" id="Gradient_0hser"]
-interpolation_mode = 2
-offsets = PackedFloat32Array(0, 0.059322, 1)
+[sub_resource type="Gradient" id="Gradient_r2pdr"]
+offsets = PackedFloat32Array(0, 0.0762712, 1)
 colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0)
 
 [node name="ExampleScene" type="Node2D"]
@@ -66,12 +65,11 @@ texture_repeat = 2
 position = Vector2(572, 151)
 script = ExtResource("1_s71qc")
 life_time = 2.0
-segment_length = 25.0
-width = 100.0
+width = 125.7
 width_curve = SubResource("Curve_nh4de")
-noise_amount = 300.0
-noise_amount_curve = SubResource("Curve_cuub1")
+noise_amount = 319.78
+noise_amount_curve = SubResource("Curve_udh83")
 noise_frequency = 0.25
-gradient = SubResource("Gradient_0hser")
-texture = ExtResource("2_psm2v")
+gradient = SubResource("Gradient_r2pdr")
+texture = ExtResource("2_p8vka")
 texture_mode = 2

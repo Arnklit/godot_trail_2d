@@ -3,9 +3,12 @@ extends Node2D
 ## A 2D trail that generates from a point.
 
 const noise_texture: Texture2D = preload("trail_2d_noise.png")
+enum {POINT_LIFETIME, TRAIL_LENGTH}
 
 ## If [code]true[/code], points are being emitted.
 @export var emitting := true: set = set_emitting
+## If [code]true[/code], line generation is pause can be toggled with [code]J[/code]
+@export var paused := false
 ## Amount of time each point will exist.
 @export var life_time := 1.0
 ## The distance between each point.
@@ -19,11 +22,13 @@ const noise_texture: Texture2D = preload("trail_2d_noise.png")
 
 @export_group("Noise")
 ## The amount of noise displacement
-@export_range(0.0, 800.0, 0.01, "or_greater") var noise_amount := 50.0
+@export_range(0.0, 800.0, 0.01, "or_greater") var noise_amount := 50.0: set = set_noise_amount
 ## The displacement amount curve, mapped over lifetime of the point.
-@export var noise_amount_curve: Curve
+@export var noise_amount_curve: Curve: set = set_noise_amount_curve
 ## Frequency of the displacement noise.
-@export var noise_frequency := 1.0
+@export var noise_frequency := 1.0: set = set_noise_frequency
+## How the noise is mapped to the trail.
+@export_enum("Point Lifetime", "Trail Length") var noise_mapping := 0: set = set_noise_mapping
 
 @export_group("Fill")
 ## The gradient is drawn through the whole line from start to finish. The [member default_color] will not be used if this property is set.
@@ -53,20 +58,23 @@ const noise_texture: Texture2D = preload("trail_2d_noise.png")
 # Private Variables
 var _last_point: Vector2
 var _points := PackedVector2Array()
-var _age_array := PackedFloat32Array()
-var _noise_array := PackedVector2Array()
+var _lifetime_array := PackedFloat32Array()
+# We store the sampled noise in x and y and the sample point in z, to be able to resample.
+var _noise_array := PackedVector3Array()
 var _line2d : Line2D
 var _noise_sample_point := 0.0
 var _first_enter_tree := true
-var _noise_image : Image
+var _noise_image: Image
+var _noise_image_width: int
+var _max_trail_length
 
 
 func set_emitting(value: bool) -> void:
 	emitting = value
 	if value:
 		_points = PackedVector2Array()
-		_age_array = PackedFloat32Array()
-		_noise_array = PackedVector2Array()
+		_lifetime_array = PackedFloat32Array()
+		_noise_array = PackedVector3Array()
 
 
 func set_width(value: float) -> void:
@@ -88,6 +96,39 @@ func set_default_color(value: Color) -> void:
 	if _first_enter_tree:
 		return
 	_line2d.default_color = value
+
+
+func set_noise_amount(value: float) -> void:
+	noise_amount = value
+	if _first_enter_tree:
+		return
+	_update_line_noise()
+
+
+func set_noise_amount_curve(value: Curve) -> void:
+	if noise_amount_curve != null:
+		if noise_amount_curve.changed.is_connected(_update_line_noise):
+			noise_amount_curve.changed.disconnect(_update_line_noise)
+	noise_amount_curve = value
+	if noise_amount_curve != null:
+		noise_amount_curve.changed.connect(_update_line_noise)
+	if _first_enter_tree:
+		return
+	_update_line_noise()
+
+
+func set_noise_frequency(value: float) -> void:
+	noise_frequency = value
+	if _first_enter_tree:
+		return
+	_resample_noise()
+
+
+func set_noise_mapping(value: int) -> void:
+	noise_mapping = value
+	if _first_enter_tree:
+		return
+	_update_line_noise()
 
 
 func set_gradient(value: Gradient) -> void:
@@ -159,6 +200,7 @@ func _enter_tree():
 		_first_enter_tree = false
 	
 	_noise_image = noise_texture.get_image()
+	_noise_image_width = noise_texture.get_width()
 	
 	_line2d = Line2D.new()
 	add_child(_line2d)
@@ -177,38 +219,64 @@ func _enter_tree():
 	_line2d.antialiased = antialiased
 
 
+func  _exit_tree():
+	if noise_amount_curve.changed.is_connected(_update_line_noise):
+		noise_amount_curve.changed.disconnect(_update_line_noise)
+
+
 func _process(delta):
 	# The Line 2D child used for drawing the trail has it's transform zeroed every frame.
 	# This is used rather than using top_level so overriding materisl properties still works.
 	_line2d.global_transform = Transform2D.IDENTITY
 	
-	if _last_point.distance_to(global_position) > segment_length and emitting:
-		_noise_sample_point += segment_length
-		
-		_points.insert(0, global_position)
-		_age_array.insert(0, life_time)
-		var noise_color_1 := _noise_image.get_pixel(wrap(floor(_noise_sample_point) * noise_frequency, 0.0, 512.0), 0)
-		# Bilinear Sampling
-		#var noise_color_2 := _noise_image.get_pixel(wrap(ceil(_noise_sample_point) * noise_frequency, 0.0, 512.0), 0)
-		#var col_mix = noise_color_1.lerp(noise_color_2, fmod(_noise_sample_point, 1.0))
-		_noise_array.insert(0, Vector2(noise_color_1.r, noise_color_1.g) - Vector2(0.5, 0.5))
-		_last_point = global_position
- 	
+	if paused:
+		return
+	
+	if emitting:
+		if _last_point.distance_to(global_position) > segment_length:
+			_noise_sample_point += segment_length
+			
+			_points.insert(0, global_position)
+			var noise_color := _noise_image.get_pixel(wrap(floor(_noise_sample_point) * noise_frequency, 0.0, _noise_image_width), 0)
+			_lifetime_array.insert(0, life_time)
+			_noise_array.insert(0, Vector3(noise_color.r - 0.5, noise_color.g - 0.5, _noise_sample_point))
+			_last_point = global_position
+	
+	
 	var idx := 0
-	while idx < _age_array.size():
-		_age_array[idx] -= delta
-		if _age_array[idx] < 0.0:
-			_age_array.remove_at(idx)
-			_points.remove_at(idx)
+	while idx < _lifetime_array.size():
+		_lifetime_array[idx] -= delta
+		if _lifetime_array[idx] < 0.0:
+			_lifetime_array.remove_at(idx)
 			_noise_array.remove_at(idx)
+			_points.remove_at(idx)
 		idx += 1
 	
 	_line2d.points = _points
 	
-	for i in _line2d.get_point_count():
-		var n_sample = 1.0 if noise_amount_curve == null else noise_amount_curve.sample(1.0 - (_age_array[i] / life_time))
-		_line2d.points[i] += _noise_array[i] * noise_amount * n_sample
+	_update_line_noise()
 	
+	# FIX - the below is not working correctly. We might have to make this "temp" point part of
+	# _points so we treat them all the same and then remove it each frame and re-add it.
 	# This ensures there always is a temporary point close to the emitter to avoid stuttering
-	if _last_point.distance_to(global_position) > min(segment_length, 5.0) and emitting:
-		_line2d.add_point(global_position, 0)
+	#if _last_point.distance_to(global_position) > min(segment_length, 5.0) and emitting:
+	#	_line2d.add_point(global_position, 0)
+
+func _update_line_noise() -> void:
+	for i in _points.size():
+		var n_sample: float
+		match noise_mapping:
+			POINT_LIFETIME:
+				n_sample = 1.0 if noise_amount_curve == null else noise_amount_curve.sample(1.0 - (_lifetime_array[i] / life_time))
+			TRAIL_LENGTH:
+				n_sample = 1.0 if noise_amount_curve == null else noise_amount_curve.sample(float(i) / float(_points.size()))
+		_line2d.points[i].x = _points[i].x + _noise_array[i].x * noise_amount * n_sample
+		_line2d.points[i].y = _points[i].y + _noise_array[i].y * noise_amount * n_sample
+
+
+func _resample_noise() -> void:
+	for i in _noise_array.size():
+		var noise_color := _noise_image.get_pixel(wrap(floor(_noise_array[i].z) * noise_frequency, 0.0, _noise_image_width), 0)
+		_noise_array[i].x = noise_color.r - 0.5
+		_noise_array[i].y = noise_color.g - 0.5
+	_update_line_noise()

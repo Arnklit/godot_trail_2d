@@ -197,6 +197,7 @@ func set_antialised(value: bool) -> void:
 func _enter_tree():
 	_last_point = global_position
 	if Engine.is_editor_hint() and _first_enter_tree:
+		process_priority = 1
 		_first_enter_tree = false
 	
 	_noise_image = noise_texture.get_image()
